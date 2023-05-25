@@ -177,6 +177,27 @@ if __name__ == "__main__":
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     image1 =tifffile.imread("/media/tom/T7/Stitch/acquisition/r1_bc1/opool1_1_MMStack_3-Pos_3_ch1.tif").astype(float)
     image2 = tifffile.imread("/media/tom/T7/Stitch/acquisition/r7_bc3/opool1_1_MMStack_3-Pos_3_ch1.tif").astype(float)
 

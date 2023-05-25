@@ -19,9 +19,9 @@ def stich_with_image_J(
     grid_size_x =5,
     grid_size_y =5,
     tile_overlap = 10,
-    image_name = "r1_pos0_ch0.tif",
-    image_path = "/media/tom/Transcend/lustr2023/images/r1_Cy3",
-    output_path = "/media/tom/Transcend/lustr2023/images/r1_Cy3/output_s",):
+    image_name = "r1_pos{i}_ch1.tif",
+    image_path = "/media/tom/Transcend/lustr2023/images/image_mip/r1_Cy3",
+    output_path = "/media/tom/Transcend/lustr2023/images/image_mip/r1_Cy3/output_dapi",):
 
 
     ##find the option to save it in a file txt
@@ -47,10 +47,13 @@ def stich_with_image_J(
         " absolute_displacement_threshold=3.50"+
         " compute_overlap" +   
         " computation_parameters=[Save memory (but be slower)]"+
+        " image_output=[Write to disk]"+
         " output_directory="+output_path);
     """
     #  " image_output=[Write to disk]"+
     ### add compute overlap key word
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+
     args = {"grid_size_x": grid_size_x,
             "grid_size_y": grid_size_y,
             "tile_overlap": tile_overlap,

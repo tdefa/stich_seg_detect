@@ -10,7 +10,7 @@
 #SBATCH -J spots_detection
 
 
-#SBATCH --output="spots_detection.out"
+#SBATCH --output="spots_quality.out"
 #SBATCH --mem 65000    # Memory per node in MB (0 allocates all the memory)
 
 #SBATCH --ntasks=1              # Number of processes to run (default is 1)
@@ -33,8 +33,8 @@ python main.py \
 --name_dico 23mai \
 --segmentation 0 \
 --registration 0 \
---spots_detection 1 \
---signal_quality 0 \
+--spots_detection 0 \
+--signal_quality 1 \
 --stitch 0 \
 --local_detection 0 \
 --stich_spots_detection 0 \

@@ -13,6 +13,32 @@ import datetime
 from pathlib import Path
 
 # Press the green button in the gutter to run the script.
+
+dico_bc_gene0 = {
+    'r1_bc1': "Rtkn2",
+    'r3_bc4': "Pecam1",
+    'r4_bc5': "Ptprb",
+    'r5_bc6': "Pdgfra",
+    'r6_bc7': "Chil3",
+    'r7_bc3': "Lamp3"
+}
+
+dico_bc_gene1 = {
+    'r1_Cy3': "Rtkn2",
+    'r2': "Lamp3",
+    'r3': "Ptprb",
+    'r4': "Pecam1",
+    'r5': "Ptprb",
+    'r6': "Pdgfra",
+    'r7': "Chil3",
+    "r8": "Apln",
+    "r9": "Fibin",
+    "r10": "Pon1",
+    "r11": "Cyp2s1",
+    "r12": "C3ar1",
+    "r13": "Hhip",}
+
+
 if __name__ == '__main__':
 
     ####### segment individual tile
@@ -69,6 +95,35 @@ if __name__ == '__main__':
                         default=0,
                         help='')
 
+
+    ######## parameters stiching
+    parser.add_argument("--image_shape",
+                        type=list,
+                        default=[55, 2048, 2048],
+                        help='')
+
+    parser.add_argument("--nb_tiles",
+                        type=int,
+                        default=5,
+                        help='')
+
+    parser.add_argument("--regex_image_stiching",
+                        type=str,
+                        default="r1_pos{i}_ch0.tif",
+                        )
+
+
+
+    #image_name = "opool1_1_MMStack_3-Pos_{i}_ch1.tif",
+    #image_path = "/media/tom/T7/Stitch/acquisition/r1_bc1",
+    #output_path = "/media/tom/T7/Stitch/acquisition/output_s",
+
+    """parser.add_argument("--local_detection",
+                        type=int,
+                        default=0,
+                        help='')"""
+
+
     ##### task to do
 
     parser.add_argument("--segmentation", default=1, type=int)
@@ -87,6 +142,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print(args)
+
+
+    args.image_path_stiching = args.folder_of_rounds + args.fixed_round_name
+    args.output_path_stiching = args.folder_of_rounds + args.fixed_round_name + "output_s"
 
     e = datetime.datetime.now()
     date_str = f"{e.month}_{e.day}_{e.hour}_{e.minute}_{e.second}"
@@ -184,7 +243,7 @@ if __name__ == '__main__':
              allow_pickle=True).item()
 
         dico_signal_quality = compute_quality_all_rounds(
-            dico_spots,
+            dico_spots = dico_spots,
             round_folder_path=args.folder_of_rounds,
             round_name_regex=args.folder_regex_round,
             image_name_regex=args.image_name_regex,
@@ -193,7 +252,9 @@ if __name__ == '__main__':
             voxel_size=[300, 108, 108],
             spot_radius=300,
             sigma=1.3,
-            order=5
+            order=5,
+            compute_sym=True,
+            return_list=True,
         )
         np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_signal_quality{args.local_detection}.npy", dico_spots)
 
@@ -227,28 +288,32 @@ if __name__ == '__main__':
             print()
 
     if args.stitch == 1:
-        from stiching import stich_with_image_J
+        from stiching import stich_with_image_J, parse_txt_file
 
         stich_with_image_J(
-            grid_size_x=3,
-            grid_size_y=3,
+            grid_size_x=args.nb_tiles,
+            grid_size_y=args.nb_tiles,
             tile_overlap=10,
-            image_name="opool1_1_MMStack_3-Pos_{i}_ch1.tif",
-            image_path="/media/tom/T7/Stitch/acquisition/r1_bc1",
-            output_path="/media/tom/T7/Stitch/acquisition/output_s",
+            image_name=args.regex_image_stiching,
+            image_path=args.image_path_stiching,
+            output_path=args.output_path_stiching ,
         )
 
         #### generate registration dico
 
         dico_stitch = parse_txt_file \
-            (path_txt="/media/tom/T7/Stitch/acquisition/r1_bc1/TileConfiguration.registered_ch1.txt",
-             image_name_regex="opool1_1_MMStack")
+            (path_txt= args.regex_image_stiching + "TileConfiguration.registered_ch1.txt",
+             image_name_regex="_pos",)
         np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_stitch.npy",
                 dico_stitch)
 
     if args.stich_spots_detection:  ## get a dataframe with the spots codinates in the ref round
 
         from stiching import stich_dico_spots, stich_segmask
+
+        dico_stitch = np.load(f"{args.folder_of_rounds}{args.name_dico}_dico_stitch.npy",
+            allow_pickle=True).item()
+
 
         dico_spots = np.load \
             (f"{args.folder_of_rounds}{args.name_dico}_dico_spots_local_detection{args.local_detection}.npy",
@@ -263,25 +328,19 @@ if __name__ == '__main__':
         df_coord, new_spot_list_dico, missing_data = stich_dico_spots(dico_spots,
                                                                       dico_translation,
                                                                       dico_stitch,
-                                                                      ref_round="r1_bc1",
-
-                                                                      dico_bc_gene={
-                                                                          'r1_bc1': "Rtkn2",
-                                                                          'r3_bc4': "Pecam1",
-                                                                          'r4_bc5': "Ptprb",
-                                                                          'r5_bc6': "Pdgfra",
-                                                                          'r6_bc7': "Chil3",
-                                                                          'r7_bc3': "Lamp3"
-                                                                      },
-                                                                      image_shape=[55, 2048, 2048],
-                                                                      nb_tiles=3
+                                                                      ref_round=args.fixed_round_name,
+                                                                      dico_bc_gene=dico_bc_gene1,
+                                                                      image_shape=args.image_shape,
+                                                                      nb_tiles=args.nb_tiles,
                                                                       )
 
-        final_masks = stich_segmask(dico_stitch,
-                                    # np.load(f"/media/tom/T7/Stitch/acquisition/2mai_dico_stitch.npy",allow_pickle=True).item()
-                                    path_mask="/media/tom/T7/stich0504/segmentation_mask",
-                                    image_shape=[55, 2048, 2048],
-                                    nb_tiles=3)
+        if args.stich_segmentation_mask:
+
+            final_masks = stich_segmask(dico_stitch,
+                                        # np.load(f"/media/tom/T7/Stitch/acquisition/2mai_dico_stitch.npy",allow_pickle=True).item()
+                                        path_mask=args.path_to_mask_dapi,
+                                        image_shape=args.image_shape,
+                                        nb_tiles=args.nb_tiles,)
 
         x_list = list(df_coord.x)
         y_list = list(df_coord.y)
