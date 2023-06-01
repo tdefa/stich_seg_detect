@@ -19,9 +19,9 @@ def stich_with_image_J(
     grid_size_x =5,
     grid_size_y =5,
     tile_overlap = 10,
-    image_name = "r1_pos{i}_ch1.tif",
-    image_path = "/media/tom/Transcend/lustr2023/images/image_mip/r1_Cy3",
-    output_path = "/media/tom/Transcend/lustr2023/images/image_mip/r1_Cy3/output_dapi",):
+    image_name = "r1_pos{i}_ch0.tif",
+    image_path = "/media/tom/Transcend/lustr2023/images/r1_Cy3",
+    output_path = "/media/tom/Transcend/lustr2023/images/r1_Cy3/output_s",):
 
 
     ##find the option to save it in a file txt
@@ -33,7 +33,7 @@ def stich_with_image_J(
     #@ String image_name
     #@ String output_path
      run("Grid/Collection stitching",
-        "type=[Grid: row-by-row] order=[Right & Down]" +
+        "type=[Grid: snake-by-row] order=[Left & Down]" +
         " grid_size_x=" + grid_size_x +
         " grid_size_y=" + grid_size_y +
         " tile_overlap=" + tile_overlap +
@@ -139,7 +139,7 @@ def stich_dico_spots(dico_spots,
             else:
                 x_translation = dico_translation[image_name][ref_round][round_t]['x_translation']
                 y_translation = dico_translation[image_name][ref_round][round_t]['y_translation']
-            dico_spots_registered[round_t][image_name] = dico_spots[round_t][image_name] - np.array([0, x_translation, y_translation])
+            dico_spots_registered[round_t][image_name] = dico_spots[round_t][image_name] - np.array([0, y_translation, x_translation])
 
 
     ###  create df coord in ref round + gene
@@ -200,16 +200,17 @@ def stich_dico_spots(dico_spots,
 def stich_segmask(dico_stitch, # np.load(f"/media/tom/T7/Stitch/acquisition/2mai_dico_stitch.npy",allow_pickle=True).item()
                   path_mask = "/media/tom/T7/stich0504/segmentation_mask",
                   image_shape=[55, 2048, 2048],
-                  nb_tiles = 3):
+                  nb_tiles = 3,
+                  channel_stiched = "ch1"):
 
     image_lx = image_shape[-2]
     image_ly = image_shape[-1]
     final_shape_xy = np.array([image_lx * nb_tiles + 100, image_ly * nb_tiles + 100]) #ten pixels margin
     final_masks = np.zeros([image_shape[0], int(final_shape_xy[0]), int(final_shape_xy[1])], dtype= np.uint16 )
-    for path_ind_mask in list(Path(path_mask).glob("*.tif"))[:]:
+    for path_ind_mask in tqdm(list(Path(path_mask).glob("*.tif"))[:]):
         print(path_ind_mask.name)
         ind_mask = tifffile.imread(path_ind_mask)
-        x_or, y_or, z_or = dico_stitch[path_ind_mask.name[:-4] + "_ch1.tif"]
+        x_or, y_or, z_or = dico_stitch[path_ind_mask.name[:-4] + "_" + channel_stiched + ".tif"]
         x_or, y_or, z_or, = round(x_or), round(y_or), round(z_or)
         ind_mask = ind_mask.astype(np.uint16)
         max_ind_cell =  final_masks.max()
@@ -224,7 +225,7 @@ def stich_segmask(dico_stitch, # np.load(f"/media/tom/T7/Stitch/acquisition/2mai
         if 0 in present_cell:
             present_cell = present_cell[1:]
 
-        for cell in tqdm(present_cell):
+        for cell in present_cell:
             unique_inter_cell = np.unique(ind_mask[local_mask == cell])
             print(f'unique_inter_cell {unique_inter_cell} , cell {cell}')
             if 0 in unique_inter_cell:
@@ -402,7 +403,7 @@ if __name__ == "__main__":
             if round_t not in new_spot_list_dico.keys():
                 new_spot_list_dico[round_t] = []
             for spot in spot_list:
-                if
+                #if
                 list_z.append(spot[0] + cz)
                 list_x.append(spot[1] + cy)
                 list_y.append(spot[2] + cx)

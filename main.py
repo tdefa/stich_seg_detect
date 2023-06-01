@@ -92,14 +92,14 @@ if __name__ == '__main__':
     ### param for detection
     parser.add_argument("--local_detection",
                         type=int,
-                        default=0,
+                        default=1,
                         help='')
 
 
     ######## parameters stiching
     parser.add_argument("--image_shape",
                         type=list,
-                        default=[55, 2048, 2048],
+                        default=[37, 2048, 2048],
                         help='')
 
     parser.add_argument("--nb_tiles",
@@ -126,7 +126,7 @@ if __name__ == '__main__':
 
     ##### task to do
 
-    parser.add_argument("--segmentation", default=1, type=int)
+    parser.add_argument("--segmentation", default=0, type=int)
     parser.add_argument("--registration", default=0, type=int)
 
     parser.add_argument("--spots_detection", default=1, type=int)
@@ -219,7 +219,7 @@ if __name__ == '__main__':
             dico_translation=dico_translation,
             diam_um=20,
             local_detection=args.local_detection,
-            min_cos_tetha=0.65,
+            min_cos_tetha=0.70,
             order=5,
             test_mode=False,
             threshold_merge_limit=0.330,
@@ -256,7 +256,7 @@ if __name__ == '__main__':
             compute_sym=True,
             return_list=True,
         )
-        np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_signal_quality{args.local_detection}.npy", dico_spots)
+        np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_signal_quality{args.local_detection}.npy", dico_signal_quality)
 
         for round_str in dico_signal_quality:
             mean_intensity = []
@@ -306,7 +306,9 @@ if __name__ == '__main__':
              image_name_regex="_pos",)
         np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_stitch.npy",
                 dico_stitch)
-
+    #dico_stitch =   parse_txt_file \
+     #       (path_txt= "/media/tom/Transcend/lustr2023/images/r1_Cy3/TileConfiguration.registered.txt",
+      #       image_name_regex="_pos",)
     if args.stich_spots_detection:  ## get a dataframe with the spots codinates in the ref round
 
         from stiching import stich_dico_spots, stich_segmask
@@ -320,8 +322,7 @@ if __name__ == '__main__':
              allow_pickle=True).item()
         dico_translation = np.load(f"{args.folder_of_rounds}{args.name_dico}_dico_translation.npy",
                                    allow_pickle=True).item()
-        dico_registration = np.load(f"{args.folder_of_rounds}{args.name_dico}_dico_registration.npy",
-                                    allow_pickle=True).item()
+
 
         '{args.stich_output_path}TileConfiguration.registered_ch1.txt}'
 
@@ -340,8 +341,8 @@ if __name__ == '__main__':
                                         # np.load(f"/media/tom/T7/Stitch/acquisition/2mai_dico_stitch.npy",allow_pickle=True).item()
                                         path_mask=args.path_to_mask_dapi,
                                         image_shape=args.image_shape,
-                                        nb_tiles=args.nb_tiles,)
-
+                                        nb_tiles=args.nb_tiles,
+                                        channel_stiched="ch0",)
         x_list = list(df_coord.x)
         y_list = list(df_coord.y)
         z_list = list(df_coord.z)
@@ -359,7 +360,7 @@ if __name__ == '__main__':
         df_coord["in_nucleus"] = nuc_prior
 
         dico_dico_commu = {"stich0": {"df_spots_label": df_coord, }}
-        np.save(f"/media/tom/T7/Stitch/comseg_input/2mai", dico_dico_commu)
+        np.save(f"/media/tom/Transcend/lustr2023/dico_dico_commu_1juin", dico_dico_commu)
 
         np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_dico_commu.npy", dico_dico_commu)
 

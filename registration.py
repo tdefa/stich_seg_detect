@@ -1,6 +1,6 @@
 
 
-
+#%%
 import numpy as np
 from skimage.registration import phase_cross_correlation
 from scipy.ndimage import fourier_shift
@@ -99,14 +99,15 @@ def compute_euler_transform(fixed_image,
     )
     final_metric_value = registration_method.GetMetricValue()
     thetha = final_transform.GetParameters()[0]
-    y_translation = final_transform.GetParameters()[1]
-    x_translation = final_transform.GetParameters()[2]
+    x_translation = final_transform.GetParameters()[1] ## itk do not uxe python convention
+    y_translation = final_transform.GetParameters()[2]
     assert thetha < 0.17, "angle is too big more than one degree"
     return final_metric_value, thetha, x_translation, y_translation
 
 
 from skimage.transform import AffineTransform, warp
 def shift(image, translation):
+    assert image.ndim == 2
     transform = AffineTransform(translation=translation)
     shifted = warp(image, transform, mode='constant', preserve_range=True)
 
@@ -171,17 +172,49 @@ def folder_translation(folder_of_rounds = "/media/tom/T7/Stitch/acquisition/", #
                                                                                                 'y_translation': y_translation}
     return dico_translation
 
-
+#%%
 
 if __name__ == "__main__":
 
 
 
 
+    ###########
+    # check the image translation
+    ############
 
 
 
 
+
+
+
+
+    image1 =tifffile.imread("/media/tom/Transcend/lustr2023/images/r1_Cy3/r1_pos22_ch0.tif")
+    image2 = tifffile.imread("/media/tom/Transcend/lustr2023/images/r11/r11_pos22_ch0.tif")
+
+    image1 = np.amax(image1, 0)
+    image2 = np.amax(image2, 0)
+
+    dico_translation = np.load('/media/tom/Transcend/lustr2023/images/23mai_dico_translation.npy', allow_pickle=True).item()
+
+    x_translation = dico_translation['r1_pos22_ch0.tif']['r1_Cy3']['r11']['x_translation']
+    y_translation = dico_translation['r1_pos22_ch0.tif']['r1_Cy3']['r11']['y_translation']
+
+    shifted_image1 = shift(image1, translation=(-x_translation,-y_translation))
+    #shifted_image2 = shift(image2, translation=(-y_translation, -x_translation))
+    #shifted_image3 = shift(image2, translation=(-y_translation, -x_translation))
+    shifted_image4 = shift(image2, translation=(x_translation, y_translation))
+
+
+    import napari
+    viewer = napari.view_image(image1, name="image1")
+    viewer.add_image(image2, name="image2")
+    viewer.add_image(shifted_image1, name="shifted_image1")
+
+    #viewer.add_image(shifted_image2, name="shifted_image22")
+    #viewer.add_image(shifted_image3, name="shifted_image3")
+    viewer.add_image(shifted_image4, name="shifted_image4")
 
 
 

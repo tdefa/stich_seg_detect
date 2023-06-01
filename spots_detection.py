@@ -142,24 +142,26 @@ def detection_with_segmentation(rna,
                     new_spots.append(s)"""
 
         if test_mode: ## test mode
-            input = np.amax(rna[:,Y_min:Y_max,  X_min:X_max], 0)
+            input = np.amax(rna[:, Y_min:Y_max, X_min:X_max], 0)
             pa_ch1, pb_ch1 = np.percentile(input, (1, 99))
             rna_scale = rescale_intensity(input, in_range=(pa_ch1, pb_ch1), out_range=np.uint8).astype('uint8')
-            fig, ax = plt.subplots(2, 1, figsize=(15, 15))
+            fig, ax = plt.subplots(2, 2, figsize=(30, 30))
             plt.title(f' X {str([X_min, X_max])} + Y {str([Y_min, Y_max])}', fontsize=20)
 
-            ax[0].imshow(rna_scale)
-            ax[1].imshow(rna_scale)
+            ax[0, 0].imshow(rna_scale)
+            ax[0, 1].imshow(rna_scale)
             for s in spots:
-                ax[0].scatter(s[-1], s[-2], c='red', s=28)
-            plt.show()
+                ax[0, 0].scatter(s[-1], s[-2], c='red', s=28)
+            # plt.show()
 
-            fig, ax = plt.subplots(2, 1, figsize=(15, 15))
-            plt.title(f'with remove artf  order{order}  min_tetha {min_cos_tetha}  X {str([X_min, X_max])} + Y {str([Y_min, Y_max])}', fontsize=20)
-            ax[0].imshow(rna_scale)
-            ax[1].imshow(rna_scale)
+            # fig, ax = plt.subplots(2, 1, figsize=(15, 15))
+            plt.title(
+                f'with remove artf  order{order}  min_tetha {min_cos_tetha}  X {str([X_min, X_max])} + Y {str([Y_min, Y_max])}',
+                fontsize=20)
+            ax[1, 0].imshow(rna_scale)
+            ax[1, 1].imshow(rna_scale)
             for s in new_spots:
-                ax[0].scatter(s[-1], s[-2], c='red', s=28)
+                ax[1, 0].scatter(s[-1], s[-2], c='red', s=28)
             plt.show()
         spots = new_spots
         spots = np.array(spots)
@@ -263,6 +265,7 @@ def detection_folder_with_segmentation(
             if local_detection:
 
                 mask_name = path_rna_img.name.replace('_' + channel_name_regex, "")
+                print(f"mask name {mask_name}")
                 segmentation_mask = tifffile.imread(path_output_segmentaton + mask_name)
                 ### get the translation between the mask and the rna image
                 if path_round.name == fixed_round_name:
@@ -270,7 +273,7 @@ def detection_folder_with_segmentation(
                     y_translation_mask_to_rna = 0
 
                 else :
-                    if dico_translation[path_rna_img.name][fixed_round_name][path_round.name]['x_translation'] is None\
+                    if dico_translation[path_rna_img.name][fixed_round_name][path_round.name]['x_translation'] is None \
                             or dico_translation[path_rna_img.name][fixed_round_name][path_round.name]['y_translation'] is None:
                         print("no translation found for round ")
                         continue
@@ -292,6 +295,8 @@ def detection_folder_with_segmentation(
                                             threshold_merge_limit=threshold_merge_limit,
                                             x_translation_mask_to_rna=x_translation_mask_to_rna,
                                             y_translation_mask_to_rna=y_translation_mask_to_rna)
+                threshold = None
+
 
             else:
                 if threshold_input is not None and path_round.name in threshold_input.keys() and path_rna_img.name in threshold_input[path_round.name].keys():
