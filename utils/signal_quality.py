@@ -43,7 +43,7 @@ def mean_cos_tetha(gz, gy, gx, z, yc, xc, order = 3):
 
     import math
     list_cos_tetha = []
-    for i in tqdm(range(xc-order, xc+order+1)):
+    for i in range(xc-order, xc+order+1):
         for j in range(yc-order, yc+order+1):
             if i - xc < 1 and j-yc < 1:
                 continue

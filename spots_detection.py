@@ -32,7 +32,7 @@ def remove_artifact(filtered_fish, spots, order = 3, min_cos_tetha = 0.75):
     gz, gy, gx = np.gradient(filtered_fish)
     real_spots = []
     for s in spots:
-        if     mean_cos_tetha(gz, gy, gx,
+        if mean_cos_tetha(gz, gy, gx,
                           z=s[0], yc=s[1],
                           xc=s[2], order=order) > min_cos_tetha:
             real_spots.append(s)
@@ -61,7 +61,7 @@ def remove_double_detection(input_array,
                         for point1, point2 in combos
                         if np.linalg.norm(point1 * scale_z_xy  - point2 * scale_z_xy) < threshold]
 
-    points_to_keep = [point for point in input_array if list(point) not in points_to_remove]
+    points_to_keep = [list(point) for point in unique_tuple if list(point) not in points_to_remove]
     return points_to_keep
 
 
@@ -100,7 +100,6 @@ def detection_with_segmentation(rna,
     Returns:
     """
 
-
     rna_log = stack.log_filter(rna, sigma)
     mask = detection.local_maximum_detection(rna_log, min_distance=min_distance)
     rna_gaus = ndimage.gaussian_filter(rna, sigma)
@@ -115,59 +114,63 @@ def detection_with_segmentation(rna,
     all_spots = []
     pbar = tqdm(list_of_nuc)
     for mask_id in pbar:
-        pbar.set_description(f"detecting rna around cell {mask_id}")
-        [Zm,Ym, Xm] = ndimage.center_of_mass(segmentation_mask == mask_id)
-        Xm -= x_translation_mask_to_rna
-        Ym -= y_translation_mask_to_rna
-        Y_min = np.max([0, Ym - diam_um / scale_xy]).astype(int)
-        Y_max = np.min([segmentation_mask.shape[1], Ym + diam_um / scale_xy]).astype(int)
-        X_min = np.max([0, Xm - diam_um / scale_xy]).astype(int)
-        X_max = np.min([segmentation_mask.shape[2], Xm + diam_um / scale_xy]).astype(int)
-        crop_mask = mask[:, Y_min:Y_max, X_min:X_max]
-        threshold = detection.automated_threshold_setting(rna_log[:, Y_min:Y_max, X_min:X_max], crop_mask)
+        try:
+            pbar.set_description(f"detecting rna around cell {mask_id}")
+            [Zm,Ym, Xm] = ndimage.center_of_mass(segmentation_mask == mask_id)
+            Xm -= x_translation_mask_to_rna
+            Ym -= y_translation_mask_to_rna
+            Y_min = np.max([0, Ym - diam_um / scale_xy]).astype(int)
+            Y_max = np.min([segmentation_mask.shape[1], Ym + diam_um / scale_xy]).astype(int)
+            X_min = np.max([0, Xm - diam_um / scale_xy]).astype(int)
+            X_max = np.min([segmentation_mask.shape[2], Xm + diam_um / scale_xy]).astype(int)
+            crop_mask = mask[:, Y_min:Y_max, X_min:X_max]
+            threshold = detection.automated_threshold_setting(rna_log[:, Y_min:Y_max, X_min:X_max], crop_mask)
 
-        spots, _ = detection.spots_thresholding(rna_log[:, Y_min:Y_max, X_min:X_max], crop_mask, threshold)
+            spots, _ = detection.spots_thresholding(rna_log[:, Y_min:Y_max, X_min:X_max], crop_mask, threshold)
 
-        if min_cos_tetha is not None:
+            if min_cos_tetha is not None:
+                new_spots = remove_artifact(filtered_fish = rna_gaus[:,Y_min:Y_max, X_min:X_max],
+                                spots = spots,
+                                order=order,
+                                min_cos_tetha=min_cos_tetha)
+                """new_spots = []
+                for s in spots:
+                    if mean_cos_tetha(filtered_crop_fish = rna_gaus[:,Y_min:Y_max, X_min:X_max],
+                                      z=s[0], yc=s[1],
+                                      xc=s[2], order=order) > min_cos_tetha:
+                        new_spots.append(s)"""
 
-            new_spots = remove_artifact(filtered_fish = rna_gaus[:,Y_min:Y_max, X_min:X_max],
-                            spots = spots,
-                            order=order,
-                            min_cos_tetha=min_cos_tetha)
-            """new_spots = []
-            for s in spots:
-                if mean_cos_tetha(filtered_crop_fish = rna_gaus[:,Y_min:Y_max, X_min:X_max],
-                                  z=s[0], yc=s[1],
-                                  xc=s[2], order=order) > min_cos_tetha:
-                    new_spots.append(s)"""
+            if test_mode: ## test mode
+                input = np.amax(rna[:, Y_min:Y_max, X_min:X_max], 0)
+                pa_ch1, pb_ch1 = np.percentile(input, (1, 99))
+                rna_scale = rescale_intensity(input, in_range=(pa_ch1, pb_ch1), out_range=np.uint8).astype('uint8')
+                fig, ax = plt.subplots(2, 2, figsize=(30, 30))
+                plt.title(f' X {str([X_min, X_max])} + Y {str([Y_min, Y_max])}', fontsize=20)
 
-        if test_mode: ## test mode
-            input = np.amax(rna[:, Y_min:Y_max, X_min:X_max], 0)
-            pa_ch1, pb_ch1 = np.percentile(input, (1, 99))
-            rna_scale = rescale_intensity(input, in_range=(pa_ch1, pb_ch1), out_range=np.uint8).astype('uint8')
-            fig, ax = plt.subplots(2, 2, figsize=(30, 30))
-            plt.title(f' X {str([X_min, X_max])} + Y {str([Y_min, Y_max])}', fontsize=20)
+                ax[0, 0].imshow(rna_scale)
+                ax[0, 1].imshow(rna_scale)
+                for s in spots:
+                    ax[0, 0].scatter(s[-1], s[-2], c='red', s=28)
+                # plt.show()
 
-            ax[0, 0].imshow(rna_scale)
-            ax[0, 1].imshow(rna_scale)
-            for s in spots:
-                ax[0, 0].scatter(s[-1], s[-2], c='red', s=28)
-            # plt.show()
-
-            # fig, ax = plt.subplots(2, 1, figsize=(15, 15))
-            plt.title(
-                f'with remove artf  order{order}  min_tetha {min_cos_tetha}  X {str([X_min, X_max])} + Y {str([Y_min, Y_max])}',
-                fontsize=20)
-            ax[1, 0].imshow(rna_scale)
-            ax[1, 1].imshow(rna_scale)
-            for s in new_spots:
-                ax[1, 0].scatter(s[-1], s[-2], c='red', s=28)
-            plt.show()
-        spots = new_spots
-        spots = np.array(spots)
-        if len(spots) > 0:
-            spots = spots + np.array([0, Y_min, X_min])
-            all_spots += list(spots)
+                # fig, ax = plt.subplots(2, 1, figsize=(15, 15))
+                plt.title(
+                    f'with remove artf  order{order}  min_tetha {min_cos_tetha}  X {str([X_min, X_max])} + Y {str([Y_min, Y_max])}',
+                    fontsize=20)
+                ax[1, 0].imshow(rna_scale)
+                ax[1, 1].imshow(rna_scale)
+                for s in new_spots:
+                    ax[1, 0].scatter(s[-1], s[-2], c='red', s=28)
+                plt.show()
+            spots = new_spots
+            spots = np.array(spots)
+            if len(spots) > 0:
+                spots = spots + np.array([0, Y_min, X_min])
+                all_spots += list(spots)
+        except Exception as e:
+            print(e)
+            print(f"error in cell {mask_id}")
+            continue
 
 
     all_spots = remove_double_detection(
@@ -250,7 +253,10 @@ def detection_folder_with_segmentation(
     dico_spots = {}
     dico_threshold = {}
 
-    for path_round in tqdm(list(Path(round_folder_path).glob(f"{round_name_regex}*"))[4:] + list(Path(round_folder_path).glob(f"{round_name_regex}*"))):
+    list_path_mask = list(Path(path_output_segmentaton).glob("*"))
+    print(list_path_mask)
+
+    for path_round in tqdm(list(Path(round_folder_path).glob(f"{round_name_regex}*"))):
         print()
         print(path_round.name)
         dico_spots[path_round.name] = {}
@@ -264,21 +270,29 @@ def detection_folder_with_segmentation(
             rna_img = tifffile.imread(path_rna_img)
             if local_detection:
 
-                mask_name = path_rna_img.name.replace('_' + channel_name_regex, "")
-                print(f"mask name {mask_name}")
-                segmentation_mask = tifffile.imread(path_output_segmentaton + mask_name)
+                #todo : more genaral code for naming
+                image_position = "pos" +  path_rna_img.name.split('pos')[1].split('_')[0]
+                path_mask = None
+                for i in list_path_mask:
+                    if "pos" in i.name:
+                        if image_position == "pos" + str(i.name).split('pos')[1].split('.')[0]:
+                            path_mask = i
+                if path_mask is None:
+                    raise  ValueError(f"no mask found for {path_rna_img.name} at position {image_position}")
+
+                print(f"mask name {path_mask.name}")
+                segmentation_mask = tifffile.imread(str(path_mask))
                 ### get the translation between the mask and the rna image
                 if path_round.name == fixed_round_name:
                     x_translation_mask_to_rna = 0
                     y_translation_mask_to_rna = 0
-
                 else :
-                    if dico_translation[path_rna_img.name][fixed_round_name][path_round.name]['x_translation'] is None \
-                            or dico_translation[path_rna_img.name][fixed_round_name][path_round.name]['y_translation'] is None:
+                    if dico_translation[image_position][fixed_round_name][path_round.name]['x_translation'] is None \
+                            or dico_translation[image_position][fixed_round_name][path_round.name]['y_translation'] is None:
                         print("no translation found for round ")
                         continue
-                    x_translation_mask_to_rna = dico_translation[path_rna_img.name][fixed_round_name][path_round.name]['x_translation']
-                    y_translation_mask_to_rna = dico_translation[path_rna_img.name][fixed_round_name][path_round.name]['y_translation']
+                    x_translation_mask_to_rna = dico_translation[image_position][fixed_round_name][path_round.name]['x_translation']
+                    y_translation_mask_to_rna = dico_translation[image_position][fixed_round_name][path_round.name]['y_translation']
 
 
 
@@ -310,6 +324,7 @@ def detection_folder_with_segmentation(
                             min_distance=min_distance,
                             threshold = threshold
                 )
+                
             dico_spots[path_round.name][path_rna_img.name] = all_spots
             dico_threshold[path_round.name][path_rna_img.name] = threshold
 
@@ -319,6 +334,9 @@ def detection_folder_with_segmentation(
 
 
 #%%
+
+
+
 
 
 if __name__ == "__main__":

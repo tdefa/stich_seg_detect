@@ -72,3 +72,21 @@ def erase_small_nuclei(mask, min_size = 340):
         if sum_size < min_size:
                 mask[mask == nuc] = 0
     return mask
+
+
+
+def compute_dico_centroid(mask_nuclei, dico_simu = None, offset = np.array([0,0,0])):
+    from skimage import measure
+    dico_nuclei_centroid = {}
+    #nuclei_labels = measure.label(mask_nuclei, background=0)
+    for lb in measure.regionprops(mask_nuclei):
+        assert lb.label != 0
+        dico_nuclei_centroid[lb.label] = {}
+        dico_nuclei_centroid[lb.label]['centroid'] = np.array(lb.centroid) + offset
+        #print(lb.centroid)
+        if dico_simu is not None:
+            dico_nuclei_centroid[lb.label]['type'] = dico_simu['dico_cell_index'][lb.label]['type']
+    return dico_nuclei_centroid
+
+
+

@@ -3,6 +3,9 @@
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import argparse
+
+import tifffile
+
 from segmentation import segment_nuclei
 from cellpose import models
 import numpy as np
@@ -26,17 +29,21 @@ dico_bc_gene0 = {
 dico_bc_gene1 = {
     'r1_Cy3': "Rtkn2",
     'r2': "Lamp3",
-    'r3': "Ptprb",
-    'r4': "Pecam1",
-    'r5': "Ptprb",
-    'r6': "Pdgfra",
-    'r7': "Chil3",
-    "r8": "Apln",
-    "r9": "Fibin",
-    "r10": "Pon1",
-    "r11": "Cyp2s1",
-    "r12": "C3ar1",
-    "r13": "Hhip",}
+    'r3': "Pecam1",
+    'r4': "Ptprb",
+    'r5': "Pdgfra",
+    'r6': "Chil3",
+    'r7': "Apln",
+    "r8": "Fibin",
+    "r9": "Pon1",
+    "r10": "Cyp2s1",
+    "r11": "C3ar1",
+    "r12": "Hhip",
+    #"r13": "Hhip",
+}
+
+
+dico_bc_noise = {"r1_Cy5": "artefact"}
 
 
 if __name__ == '__main__':
@@ -112,6 +119,10 @@ if __name__ == '__main__':
                         default="r1_pos{i}_ch0.tif",
                         )
 
+    parser.add_argument("--remove_double_detection", type = int, default = 1)
+    parser.add_argument("--stich_segmentation_mask", type = int, default = 1)
+
+
 
 
     #image_name = "opool1_1_MMStack_3-Pos_{i}_ch1.tif",
@@ -133,7 +144,7 @@ if __name__ == '__main__':
     parser.add_argument("--signal_quality", default=1, type=int)
 
     parser.add_argument("--stitch", default=0, type=int)
-    parser.add_argument("--stich_spots_detection", default=0, type=int)
+    parser.add_argument("--stich_spots_detection", default=1, type=int)
 
     parser.add_argument("--port", default=39948)
     parser.add_argument("--mode", default='client')
@@ -226,9 +237,9 @@ if __name__ == '__main__':
             file_extension='tif',
             threshold_input=threshold_input)
 
-        np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_spots_local_detection{args.local_detection}.npy",
+        np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_spots_local_detection{args.local_detection}_{args.folder_regex_round}.npy",
                 dico_spots)
-        np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_threshold{args.local_detection}.npy", dico_spots)
+        np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_threshold{args.local_detection}_{args.round_name_regex}.npy", dico_spots)
 
     ########
     # stich only ref round
@@ -300,18 +311,20 @@ if __name__ == '__main__':
         )
 
         #### generate registration dico
-
+        print(" you need to mannualy modify the path to the registered file in the txt file")
         dico_stitch = parse_txt_file \
-            (path_txt= args.regex_image_stiching + "TileConfiguration.registered_ch1.txt",
+            (path_txt= "/media/tom/Transcend/lustr2023/images/registration_ref/TileConfiguration0506.registered.txt",
              image_name_regex="_pos",)
         np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_stitch.npy",
                 dico_stitch)
     #dico_stitch =   parse_txt_file \
      #       (path_txt= "/media/tom/Transcend/lustr2023/images/r1_Cy3/TileConfiguration.registered.txt",
       #       image_name_regex="_pos",)
+
+
     if args.stich_spots_detection:  ## get a dataframe with the spots codinates in the ref round
 
-        from stiching import stich_dico_spots, stich_segmask
+        from stiching import stich_segmask
 
         dico_stitch = np.load(f"{args.folder_of_rounds}{args.name_dico}_dico_stitch.npy",
             allow_pickle=True).item()
@@ -326,23 +339,91 @@ if __name__ == '__main__':
 
         '{args.stich_output_path}TileConfiguration.registered_ch1.txt}'
 
-        df_coord, new_spot_list_dico, missing_data = stich_dico_spots(dico_spots,
-                                                                      dico_translation,
-                                                                      dico_stitch,
+        df_coord, new_spot_list_dico, missing_data = stich_dico_spots(dico_spots = dico_spots,
+                                                                      dico_translation = dico_translation,
+                                                                      dico_stitch = dico_stitch,
                                                                       ref_round=args.fixed_round_name,
                                                                       dico_bc_gene=dico_bc_gene1,
                                                                       image_shape=args.image_shape,
                                                                       nb_tiles=args.nb_tiles,
+                                                                      check_removal = True,
+                                                                      threshold_merge_limit=0.330,
+                                                                      scale_xy=0.103,
+                                                                      scale_z=0.300,
                                                                       )
 
-        if args.stich_segmentation_mask:
 
-            final_masks = stich_segmask(dico_stitch,
+        df_coord = dico_dico_commu['stich0']['df_spots_label']
+        if args.remove_double_detection:
+
+            df_coord_noise, _, _ = stich_dico_spots(dico_spots = dico_spots,
+                                                                          dico_translation = dico_translation,
+                                                                          dico_stitch = dico_stitch,
+                                                                          ref_round=args.fixed_round_name,
+                                                                          dico_bc_gene=dico_bc_noise,
+                                                                          image_shape=args.image_shape,
+                                                                          nb_tiles=args.nb_tiles,
+                                                                            check_removal = False,
+                                                                        )
+
+            from sklearn.neighbors import NearestNeighbors
+            X_noise = np.array(list(zip(df_coord_noise.z, df_coord_noise.y, df_coord_noise.x)))
+            X = np.array(list(zip(df_coord.z, df_coord.y, df_coord.x)))
+            nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree').fit(X_noise)
+
+            distances, indices = nbrs.kneighbors(X)
+
+            distances = np.min(distances, axis = 1)
+
+            df_coord = df_coord[distances > 7]
+
+            df_coord.index = range(len(df_coord))
+
+
+
+        if args.stich_segmentation_mask:
+            from stiching import  stich_segmask
+
+            final_masks, dico_centroid = stich_segmask(dico_stitch,
                                         # np.load(f"/media/tom/T7/Stitch/acquisition/2mai_dico_stitch.npy",allow_pickle=True).item()
                                         path_mask=args.path_to_mask_dapi,
                                         image_shape=args.image_shape,
                                         nb_tiles=args.nb_tiles,
-                                        channel_stiched="ch0",)
+                                        compute_dico_centroid = True)
+
+            np.save(f"{args.folder_of_rounds}{args.name_dico}_final_masks.npy", final_masks)
+
+            np.save(f"{args.folder_of_rounds}{args.name_dico}_final_masks_mip.npy", np.amax(final_masks, 0))
+            np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_nuclei_centroid.npy", dico_centroid)
+
+
+            from utils.segmentation_processing import compute_dico_centroid
+
+            dico_nuclei_centroid = compute_dico_centroid(mask_nuclei = final_masks)
+
+            np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_nuclei_centroid.npy", dico_nuclei_centroid)
+
+
+            del final_masks
+
+            from stiching import stich_from_dico
+
+            final_dapi = stich_from_dico(dico_stitch,
+                            # np.load(f"/media/tom/T7/Stitch/acquisition/2mai_dico_stitch.npy",allow_pickle=True).item()
+                            path_mask="/media/tom/Transcend/lustr2023/images/r1_Cy3",
+                            regex="*_ch1*tif*",
+                            image_shape=[37, 2048, 2048],
+                            nb_tiles=5)
+            np.save(f"{args.folder_of_rounds}{args.name_dico}_final_dapi.npy", final_dapi)
+
+            np.save(f"{args.folder_of_rounds}{args.name_dico}_final_dapi_mip.npy", np.amax(final_dapi, 0))
+            tifffile.imsave(f"{args.folder_of_rounds}{args.name_dico}_final_dapi_mip.npy", np.amax(final_dapi, 0))
+
+
+
+
+
+        final_masks = np.load(f"{args.folder_of_rounds}{args.name_dico}_final_masks.npy")
         x_list = list(df_coord.x)
         y_list = list(df_coord.y)
         z_list = list(df_coord.z)
@@ -360,14 +441,17 @@ if __name__ == '__main__':
         df_coord["in_nucleus"] = nuc_prior
 
         dico_dico_commu = {"stich0": {"df_spots_label": df_coord, }}
-        np.save(f"/media/tom/Transcend/lustr2023/dico_dico_commu_1juin", dico_dico_commu)
+        #np.save(f"/media/tom/Transcend/lustr2023/dico_dico_commu_1juin_global_detect", dico_dico_commu)
 
-        np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_dico_commu.npy", dico_dico_commu)
+        np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_dico_commu_local_detect_cy5_removal.npy", dico_dico_commu)
 
+
+
+        compute_dico_centroid(mask_nuclei, dico_simu=None)
         ###############" add nuclei prior to spots detection
 
-    color = "#" + ''.join([random.choice('0123456789ABCDEF') for j in range(6)])
-    viewer.add_points(in_nuc, name=f"in_nuc", face_color=color, edge_color=color, size=6)
+    #color = "#" + ''.join([random.choice('0123456789ABCDEF') for j in range(6)])
+    #viewer.add_points(in_nuc, name=f"in_nuc", face_color=color, edge_color=color, size=6)
 
     color = "#" + ''.join([random.choice('0123456789ABCDEF') for j in range(6)])
     viewer.add_points(not_in_nuc, name=f"not_in_nuc", face_color=color, edge_color=color, size=6)

@@ -135,8 +135,9 @@ def folder_translation(folder_of_rounds = "/media/tom/T7/Stitch/acquisition/", #
     for path_img_static in tqdm(list_path_img_static):
         print()
         print(path_img_static.name)
-        dico_translation[path_img_static.name] = {}
-        dico_translation[path_img_static.name][fixed_round_name] = {}
+        position_img_static = "pos" + path_img_static.name.split('pos')[1].split('_')[0]
+        dico_translation[position_img_static] = {}
+        dico_translation[position_img_static][fixed_round_name] = {}
         fixed_image = np.amax(tifffile.imread(path_img_static), 0).astype(float)
         for path_round in Path(folder_of_rounds).glob(f'{folder_regex}*'):
             if path_round.name != fixed_round_name:
@@ -167,7 +168,7 @@ def folder_translation(folder_of_rounds = "/media/tom/T7/Stitch/acquisition/", #
                 thetha, x_translation, y_translation = rep_list[min_index][1:]
 
 
-                dico_translation[path_img_static.name][fixed_round_name][path_round.name] = {'thetha': thetha,
+                dico_translation[position_img_static][fixed_round_name][path_round.name] = {'thetha': thetha,
                                                                                               'x_translation': x_translation,
                                                                                                 'y_translation': y_translation}
     return dico_translation

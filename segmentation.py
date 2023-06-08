@@ -30,6 +30,7 @@ def segment_nuclei(path_to_dapi_folder,
                    dico_param,
                    model,
                    save=True,
+                   output_dtype=np.int32
                    ):
 
 
@@ -68,11 +69,11 @@ def segment_nuclei(path_to_dapi_folder,
                                                  do_3D=dico_param["do_3D"],
                                                  stitch_threshold=0)
 
-        masks = np.array(masks, dtype=np.int16)
+        masks = np.array(masks, dtype=output_dtype)
 
         if len(masks.shape) == 3:
             masks = stitch3D_z(masks, dico_param["stitch_threshold"])
-            masks = np.array(masks, dtype = np.int16)
+            masks = np.array(masks, dtype = output_dtype)
             if len(masks.shape) and dico_param["erase_solitary"]:
                 masks = erase_solitary(masks)
         if dico_param["erase_small_nuclei"] is not None:
@@ -103,9 +104,9 @@ if __name__ == "__main__":
 
 
 
-    main_folder = "/cluster/CBIO/data1/data3/tdefard/T7/sp_data/In_situ_Sequencing_16/dapi_tile/"
-    path_to_dapi_folder = main_folder + "dapi_tile/"
-    path_to_mask_dapi = main_folder + "mask_tile_pcw/"
+    main_folder = "/cluster/CBIO/data1/data3/tdefard/T7/sp_data/In_situ_Sequencing_16/"
+    path_to_dapi_folder = main_folder + "dapi_tile_8_8/"
+    path_to_mask_dapi = main_folder + "mask_tile_8_8_v2/"
     #path_to_dapi_folder = main_folder + "dapi_pcw14/"
     #path_to_mask_dapi = main_folder + "mask_pcw14/"
     #path_to_dapi_folder = main_folder + "dapi_2/"
@@ -115,7 +116,7 @@ if __name__ == "__main__":
     model = models.Cellpose(gpu=True, model_type=model_name)
     dico_param = {}
     dico_param["diameter"] = 80
-    dico_param["flow_threshold"] = 0.9
+    dico_param["flow_threshold"] = 1.8
     dico_param["mask_threshold"] = 0
     dico_param["do_3D"] = False
     dico_param["mip"] = False
@@ -123,8 +124,10 @@ if __name__ == "__main__":
     dico_param["stitch_threshold"] = 0.3
     dico_param["erase_solitary"] = False
     dico_param["erase_small_nuclei"] = None
+    dico_param["batch_size"] = 4
+    dico_param["cellprob_threshold"] = -4
 
-    for i in [50, 40, 30, 20, 15, 10, 5]:
+    for i in [15, 12, 10, 8 ]:
         print(i)
         dico_param["diameter"] = i
 
@@ -132,7 +135,7 @@ if __name__ == "__main__":
         Path(path_to_mask_dapi_loop).mkdir(parents=True, exist_ok=True)
 
         segment_nuclei(path_to_dapi_folder=path_to_dapi_folder,
-                       regex_dapi="Ba*ti",
+                       regex_dapi="tile*ti",
                        path_to_mask_dapi=path_to_mask_dapi_loop,
                        dico_param=dico_param,
                        model=model,

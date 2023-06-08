@@ -9,6 +9,8 @@ import numpy as np
 import tifffile
 import pandas as pd
 from pathlib import Path
+from spots_detection import remove_double_detection
+
 if False:
     import imagej, scyjava
     scyjava.config.add_option('-Xmx40g')
@@ -76,6 +78,7 @@ def parse_txt_file(path_txt =  "/media/tom/T7/Stitch/acquisition/r1_bc1/TileConf
 
     dico_stitch = {}
 
+
     for line in list_line:
         if image_name_regex in line:
             dico_stitch[line.split('; ; ')[0]] = ast.literal_eval(line.split('; ; ')[1])
@@ -87,13 +90,20 @@ def parse_txt_file(path_txt =  "/media/tom/T7/Stitch/acquisition/r1_bc1/TileConf
     y_min = 0
     z_min = 0
     for img_name in dico_stitch.keys():
+        if len(np.array(dico_stitch[img_name])) == 2:
+            dico_stitch[img_name] = [dico_stitch[img_name][0], dico_stitch[img_name][1], 0]
         x_min = min(x_min, np.min(np.array(dico_stitch[img_name])[0]))
         y_min = min(y_min, np.min(np.array(dico_stitch[img_name])[1]))
         z_min = min(z_min, np.min(np.array(dico_stitch[img_name])[2]))
     for img_name in dico_stitch.keys():
         dico_stitch[img_name] = np.array(dico_stitch[img_name])
         dico_stitch[img_name] -= np.array([x_min, y_min, z_min])
-    return dico_stitch
+
+    dico_stitch_position = {}
+    for img_name in dico_stitch.keys():
+        position = "pos" + img_name.split("pos")[1].split('_')[0]
+        dico_stitch_position[position] = dico_stitch[img_name]
+    return dico_stitch_position
 
 
 #### stich dico_spots
@@ -112,35 +122,68 @@ def stich_dico_spots(dico_spots,
                          'r7_bc3': "Lamp3"
                      },
                      image_shape=[55, 2048, 2048],
-                    nb_tiles = 3
+                    nb_tiles = 3,
+                     check_removal=True,
+                     threshold_merge_limit=0.330,
+                     scale_xy=0.103,
+                     scale_z=0.300,
                      ):
 
     ### register each round to the ref round
     dico_spots_registered = {}
     missing_data = []
     image_list = list(dico_spots[ref_round].keys())
-    for round_t in dico_spots.keys():
+    for round_t in tqdm(list(dico_spots.keys())):
         dico_spots_registered[round_t] = {}
-        for image_name in image_list:
+        for image_name_ref_round in tqdm(image_list):
+            ### determine the position of the image , the number after "pos" is the position
+
+            image_position = "pos" + image_name_ref_round.split('pos')[1].split('_')[0]
+
+
+            image_name = None
+            for k in dico_spots[round_t].keys():
+                if image_position == "pos" + k.split('pos')[1].split('_')[0]:
+                    image_name = k
+                    break
+
+            #print(image_name)
             if image_name not in dico_spots[round_t].keys():
-                dico_spots_registered[round_t][image_name] = []
+                dico_spots_registered[round_t][image_name_ref_round] = []
                 missing_data.append([round_t, image_name])
+                print(f'missing data {round_t} {image_name}')
+
                 continue
 
-            if round_t not in dico_translation[image_name][ref_round].keys() and round_t != ref_round:
+            if round_t not in dico_translation[image_position][ref_round].keys() and round_t != ref_round:
                 missing_data.append([round_t, image_name])
-                dico_spots_registered[round_t][image_name] = []
+                dico_spots_registered[round_t][image_name_ref_round] = []
                 print(f'missing data {round_t} {image_name}')
                 continue
+
+            #if image_position  == "pos2":
+            #    print(image_name, round_t, "pos 2")
+            #    missing_data.append([round_t, image_name])
+            #    dico_spots_registered[round_t][image_name_ref_round] = []
+            #    continue
 
             if round_t == ref_round:
                 x_translation = 0
                 y_translation = 0
             else:
-                x_translation = dico_translation[image_name][ref_round][round_t]['x_translation']
-                y_translation = dico_translation[image_name][ref_round][round_t]['y_translation']
-            dico_spots_registered[round_t][image_name] = dico_spots[round_t][image_name] - np.array([0, y_translation, x_translation])
+                x_translation = dico_translation[image_position][ref_round][round_t]['x_translation']
+                y_translation = dico_translation[image_position][ref_round][round_t]['y_translation']
+            dico_spots_registered[round_t][image_position] = dico_spots[round_t][image_name] - np.array([0, y_translation, x_translation])
+            if check_removal:
+                clean_spots = remove_double_detection(input_array = dico_spots_registered[round_t][image_position],
+                    threshold =threshold_merge_limit,
+                    scale_z_xy = np.array([scale_z, scale_xy, scale_xy]))
+                if len(clean_spots) != len(dico_spots_registered[round_t][image_position]):
+                    print("double detection removal bug during the detection of spots")
+                    dico_spots_registered[round_t][image_position] = clean_spots
 
+
+    #### remove overlapping spot between tiles
 
     ###  create df coord in ref round + gene
     image_lx = image_shape[-2]
@@ -164,6 +207,8 @@ def stich_dico_spots(dico_spots,
         cy  = round(cy)
         cz = round(cz)
         for round_t in dico_spots_registered:
+            if round_t not in dico_bc_gene:
+                continue
             spot_list =  dico_spots_registered[round_t][image_name]
             if round_t not in new_spot_list_dico.keys():
                 new_spot_list_dico[round_t] = []
@@ -199,9 +244,11 @@ def stich_dico_spots(dico_spots,
 
 def stich_segmask(dico_stitch, # np.load(f"/media/tom/T7/Stitch/acquisition/2mai_dico_stitch.npy",allow_pickle=True).item()
                   path_mask = "/media/tom/T7/stich0504/segmentation_mask",
-                  image_shape=[55, 2048, 2048],
+                  image_shape=[37, 2048, 2048],
                   nb_tiles = 3,
-                  channel_stiched = "ch1"):
+                  compute_dico_centroid = True):
+
+    dico_centroid = {}
 
     image_lx = image_shape[-2]
     image_ly = image_shape[-1]
@@ -210,7 +257,8 @@ def stich_segmask(dico_stitch, # np.load(f"/media/tom/T7/Stitch/acquisition/2mai
     for path_ind_mask in tqdm(list(Path(path_mask).glob("*.tif"))[:]):
         print(path_ind_mask.name)
         ind_mask = tifffile.imread(path_ind_mask)
-        x_or, y_or, z_or = dico_stitch[path_ind_mask.name[:-4] + "_" + channel_stiched + ".tif"]
+        image_position = "pos" + path_ind_mask.name.split("pos")[1].split(".")[0].split("_")[0]
+        x_or, y_or, z_or = dico_stitch[image_position]
         x_or, y_or, z_or, = round(x_or), round(y_or), round(z_or)
         ind_mask = ind_mask.astype(np.uint16)
         max_ind_cell =  final_masks.max()
@@ -242,8 +290,47 @@ def stich_segmask(dico_stitch, # np.load(f"/media/tom/T7/Stitch/acquisition/2mai
 
 
         final_masks[:, y_or:y_or + image_ly, x_or:x_or + image_lx] = ind_mask
+        ###
+        if compute_dico_centroid:
+            from utils.segmentation_processing import compute_dico_centroid
+            compute_dico_centroid_ind_mask = compute_dico_centroid(mask_nuclei = ind_mask,
+                                                                   dico_simu=None,
+                                                                   offset=np.array([0, y_or, x_or]))
+            for key in compute_dico_centroid_ind_mask.keys():
+                dico_centroid[key] = compute_dico_centroid_ind_mask[key]
+            print(f'len dico_centroid {len(dico_centroid)}')
+            print()
+
+
+
         #final_masks[:, x_or:x_or + image_lx, y_or:y_or + image_ly]
+    return final_masks, dico_centroid
+
+def stich_from_dico(dico_stitch, # np.load(f"/media/tom/T7/Stitch/acquisition/2mai_dico_stitch.npy",allow_pickle=True).item()
+                  path_mask = "/media/tom/Transcend/lustr2023/images/r1_Cy3",
+                    regex = "*_ch1*tif*",
+                    image_shape=[37, 2048, 2048],
+                    nb_tiles = 5):
+
+    image_lx = image_shape[-2]
+    image_ly = image_shape[-1]
+    final_shape_xy = np.array([image_lx * nb_tiles + 100, image_ly * nb_tiles + 100]) #ten pixels margin
+    final_masks = np.zeros([image_shape[0], int(final_shape_xy[0]), int(final_shape_xy[1])], dtype=np.uint16)
+    for path_ind_mask in tqdm(list(Path(path_mask).glob(f"{regex}"))[:]):
+        print(path_ind_mask.name)
+        ind_mask = tifffile.imread(path_ind_mask)
+        image_position = "pos" + path_ind_mask.name.split("pos")[1].split(".")[0].split("_")[0]
+        x_or, y_or, z_or = dico_stitch[image_position]
+        x_or, y_or, z_or, = round(x_or), round(y_or), round(z_or)
+        final_masks[:, y_or:y_or + image_ly, x_or:x_or + image_lx] = ind_mask
+
     return final_masks
+
+
+
+
+
+
 
 if __name__ == "__main__":
 
