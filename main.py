@@ -122,19 +122,6 @@ if __name__ == '__main__':
     parser.add_argument("--remove_double_detection", type = int, default = 1)
     parser.add_argument("--stich_segmentation_mask", type = int, default = 1)
 
-
-
-
-    #image_name = "opool1_1_MMStack_3-Pos_{i}_ch1.tif",
-    #image_path = "/media/tom/T7/Stitch/acquisition/r1_bc1",
-    #output_path = "/media/tom/T7/Stitch/acquisition/output_s",
-
-    """parser.add_argument("--local_detection",
-                        type=int,
-                        default=0,
-                        help='')"""
-
-
     ##### task to do
 
     parser.add_argument("--segmentation", default=0, type=int)
@@ -164,9 +151,6 @@ if __name__ == '__main__':
     ####################
     ####### segment individual tile
     ####################
-
-    # input folder name + regex_file_name
-    # result a new save folder with the same name + _segmented
 
     if args.segmentation == 1:
         print("segmentation")
@@ -205,7 +189,7 @@ if __name__ == '__main__':
         np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_translation.npy", dico_translation)
 
     ####################
-    ## Do individual spots detection uwing mask segmentation
+    ## Do individual spots detection (optional : using mask segmentation)
     ####################
     if args.spots_detection == 1:
         print("spots detection")
@@ -242,7 +226,7 @@ if __name__ == '__main__':
         np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_threshold{args.local_detection}_{args.round_name_regex}.npy", dico_spots)
 
     ########
-    # stich only ref round
+    # Compute signal quality for each round
     #######
 
     if args.signal_quality == 1:
@@ -298,6 +282,10 @@ if __name__ == '__main__':
             print()
             print()
 
+    ########
+    # Stitch only ref round images
+    #######
+
     if args.stitch == 1:
         from stiching import stich_with_image_J, parse_txt_file
 
@@ -317,14 +305,17 @@ if __name__ == '__main__':
              image_name_regex="_pos",)
         np.save(f"{args.folder_of_rounds}{args.name_dico}_dico_stitch.npy",
                 dico_stitch)
-    #dico_stitch =   parse_txt_file \
-     #       (path_txt= "/media/tom/Transcend/lustr2023/images/r1_Cy3/TileConfiguration.registered.txt",
-      #       image_name_regex="_pos",)
+
+
+
+    ########
+    # Stitch detected spots
+    #######
 
 
     if args.stich_spots_detection:  ## get a dataframe with the spots codinates in the ref round
 
-        from stiching import stich_segmask
+        from stiching import stich_segmask,stich_dico_spots
 
         dico_stitch = np.load(f"{args.folder_of_rounds}{args.name_dico}_dico_stitch.npy",
             allow_pickle=True).item()
@@ -337,7 +328,6 @@ if __name__ == '__main__':
                                    allow_pickle=True).item()
 
 
-        '{args.stich_output_path}TileConfiguration.registered_ch1.txt}'
 
         df_coord, new_spot_list_dico, missing_data = stich_dico_spots(dico_spots = dico_spots,
                                                                       dico_translation = dico_translation,
@@ -353,7 +343,6 @@ if __name__ == '__main__':
                                                                       )
 
 
-        df_coord = dico_dico_commu['stich0']['df_spots_label']
         if args.remove_double_detection:
 
             df_coord_noise, _, _ = stich_dico_spots(dico_spots = dico_spots,
@@ -379,13 +368,14 @@ if __name__ == '__main__':
 
             df_coord.index = range(len(df_coord))
 
-
+        ########
+        # Stitch stich_segmentation_mask
+        #######
 
         if args.stich_segmentation_mask:
             from stiching import  stich_segmask
 
             final_masks, dico_centroid = stich_segmask(dico_stitch,
-                                        # np.load(f"/media/tom/T7/Stitch/acquisition/2mai_dico_stitch.npy",allow_pickle=True).item()
                                         path_mask=args.path_to_mask_dapi,
                                         image_shape=args.image_shape,
                                         nb_tiles=args.nb_tiles,
@@ -409,7 +399,6 @@ if __name__ == '__main__':
             from stiching import stich_from_dico
 
             final_dapi = stich_from_dico(dico_stitch,
-                            # np.load(f"/media/tom/T7/Stitch/acquisition/2mai_dico_stitch.npy",allow_pickle=True).item()
                             path_mask="/media/tom/Transcend/lustr2023/images/r1_Cy3",
                             regex="*_ch1*tif*",
                             image_shape=[37, 2048, 2048],
@@ -421,7 +410,9 @@ if __name__ == '__main__':
 
 
 
-
+        ########
+        # Genrate comseg imput
+        #######
 
         final_masks = np.load(f"{args.folder_of_rounds}{args.name_dico}_final_masks.npy")
         x_list = list(df_coord.x)
@@ -453,8 +444,8 @@ if __name__ == '__main__':
     #color = "#" + ''.join([random.choice('0123456789ABCDEF') for j in range(6)])
     #viewer.add_points(in_nuc, name=f"in_nuc", face_color=color, edge_color=color, size=6)
 
-    color = "#" + ''.join([random.choice('0123456789ABCDEF') for j in range(6)])
-    viewer.add_points(not_in_nuc, name=f"not_in_nuc", face_color=color, edge_color=color, size=6)
+    #color = "#" + ''.join([random.choice('0123456789ABCDEF') for j in range(6)])
+    #viewer.add_points(not_in_nuc, name=f"not_in_nuc", face_color=color, edge_color=color, size=6)
 
     ################ compute registration accross round
 
